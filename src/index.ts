@@ -46,12 +46,6 @@ function main(options) {
         tweetLimit = options.tweetLimit;
     }
 
-    if (tweetLimit && tweetLimit < minimumTweets) {
-        console.error("Limit has to be greater or equal to minimum number.");
-        process.exit(1);
-        return;
-    }
-
     filterData(input, output, minimumTweets, tweetLimit);
 }
 
@@ -68,9 +62,12 @@ function filterData(inputFolder: string, outputFolder: string, minimumTweets: nu
         if (match && match.length > 1) {
             let userid = match[1];
 
-            let tweets = getTweets(inputFolder, userid, tweetLimit);
+            // Test if dataset has enough tweets first
+            let allTweets = getTweets(inputFolder, userid);
 
-            if (tweets.length >= 2*minimumTweets) {
+            if (allTweets.length >= 2*minimumTweets) {
+                let tweets = getTweets(inputFolder, userid, tweetLimit);
+                
                 writeSample(`${outputFolder}/${userid}.json`, tweets);
             }
         }
