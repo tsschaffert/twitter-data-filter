@@ -1,89 +1,93 @@
-const fs = require('fs');
-const readline = require('readline');
+//const fs = require('fs');
+import * as fs from 'fs';
+const commandLineArgs = require('command-line-args');
 
-const dataFolder = "../TwitterData/dataset3";
-const indexFile = "index.json";
-const outputFolder = "out";
+const optionDefinitions = [
+  { name: 'input', type: String, multiple: false, defaultOption: true },
+  { name: 'output', type: String, multiple: false, defaultOption: false }
+];
 
-interface DataIndexEntry {
-    userId: string;
-    tweetId: string;
-    tweetText: string;
-    mentionedUserIds: string[];
+const fileRegex = /^([0-9]+)\.json$/;
+
+const OUTDIR = "out";
+
+interface Tweet {
+    created_at: string,
+    id_str: string,
+    text: string,
+    user: {
+        id_str: string
+    },
+    retweeted: boolean,
+    lang: string,
 }
 
-type DataIndex = DataIndexEntry[];
-
-enum Decision {
-    no,
-    sender,
-    mention
-}
-
-function* indexIterator(filePath: string) {
-    if (fs.existsSync(filePath)) {
-        const fileContent = fs.readFileSync(filePath, 'utf8');
-        const indexEntries: DataIndex = JSON.parse(fileContent);
-        for (let entry of indexEntries) {
-            yield entry;
-        }
-    } else {
+function main(options) {
+    if (options.input === undefined) {
+        console.error("Input folder is needed.");
+        process.exit(1);
         return;
     }
+
+    let input = options.input;
+    let output = OUTDIR;
+    if (options.output) {
+        output = options.output;
+    }
+
+    filterData(input, output, 1000);
 }
 
-function promptForDecision(text: string): Promise<Decision> {
-    return new Promise((resolve, reject) => {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
+function filterData(inputFolder: string, outputFolder: string, minimumTweets: number) {
+    if (!fs.existsSync(outputFolder)) {
+        fs.mkdirSync(outputFolder);
+    }  
 
-        rl.question(`${text}\n<N(o), m(ention), s(ender)>: `, (answer: string) => {
-            let result = Decision.no;
-            switch (answer.toLowerCase()) {
-                case Decision.sender.toString(): // 1
-                case "s":
-                case "sender": result = Decision.sender;
-                    break;
-                case Decision.mention.toString(): // 2
-                case "m": 
-                case "mention": result = Decision.mention;
-                    break;
-            }
+    let files = fs.readdirSync(inputFolder);
 
-            rl.close();
+    for (let file of files) {
+        let match = fileRegex.exec(file);
 
-            resolve(result);
-        });
-    });
-}
+        if (match && match.length > 1) {
+            let userid = match[1];
 
-function copyFile(sourcePath: string, targetPath: string) {
-    fs.createReadStream(sourcePath).pipe(fs.createWriteStream(targetPath));
-}
+            let tweets = getUserTweets(inputFolder, userid);
 
-async function main() {
-    for (let entry of indexIterator(`${dataFolder}/${indexFile}`)) {
-        let decision = await promptForDecision(entry.tweetText);
-        
-        if (decision == Decision.sender) {
-            let sourcePath = `${dataFolder}/${entry.userId}.json`;
-            let targetPath = `${outputFolder}/${entry.userId}.json`;
-            if (fs.existsSync(sourcePath)) {
-                copyFile(sourcePath, targetPath);
-            }
-        } else if (decision == Decision.mention) {
-            if (entry.mentionedUserIds.length > 0) {
-                let sourcePath = `${dataFolder}/${entry.mentionedUserIds[0]}.json`;
-                let targetPath = `${outputFolder}/${entry.mentionedUserIds[0]}.json`;
-
-                if (fs.existsSync(sourcePath)) {
-                    copyFile(sourcePath, targetPath);
-                }
+            if (tweets.length >= minimumTweets) {
+                writeSample(`${outputFolder}/${userid}.json`, tweets);
             }
         }
     }
 }
 
-main();
+function getUserTweets(foldername: string, userid: string, count?: number): Tweet[] {
+    let filename = `${foldername}/${userid}.json`;
+
+    let tweets: Tweet[] = JSON.parse(fs.readFileSync(filename, "utf-8"));
+
+    if (count === undefined) {
+        return tweets;
+    } else {
+        let indices = [];
+
+        // Make sure to not attempt to take more tweets than available
+        count = Math.min(tweets.length, count);
+
+        for (let i = 0; i < count; i++) {
+            let rand = -1;
+            do {
+                rand = Math.floor(Math.random() * tweets.length);
+            } while (indices.indexOf(rand) >= 0);
+
+            indices.push(rand);
+        }
+
+        return tweets.filter((value, index) => indices.indexOf(index) >= 0);
+    }
+}
+
+function writeSample(filename: string, tweets: Tweet[]) {
+    fs.writeFileSync(filename, JSON.stringify(tweets, null, 2));
+}
+
+main(commandLineArgs(optionDefinitions))

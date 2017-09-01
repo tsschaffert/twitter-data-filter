@@ -7,7 +7,8 @@
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^7.0.0",
-    "typescript": "^2.2.1"
+    "typescript": "^2.2.1",
+    "command-line-args": "^4.0.6"
   },
   "scripts": {
     "build:live": "nodemon --exec .\\node_modules\\.bin\\ts-node -- .\\index.ts",
