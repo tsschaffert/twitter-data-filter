@@ -3,13 +3,16 @@ import * as fs from 'fs';
 const commandLineArgs = require('command-line-args');
 
 const optionDefinitions = [
-  { name: 'input', type: String, multiple: false, defaultOption: true },
-  { name: 'output', type: String, multiple: false, defaultOption: false }
+    { name: 'input', type: String, multiple: false, defaultOption: true },
+    { name: 'output', type: String, multiple: false },
+    { name: 'minimumTweets', type: Number, multiple: false },
+    { name: 'tweetLimit', type: Number, multiple: false },
 ];
 
 const fileRegex = /^([0-9]+)\.json$/;
 
 const OUTDIR = "out";
+const MINIMUM_TWEETS = 1000;
 
 interface Tweet {
     created_at: string,
@@ -31,14 +34,28 @@ function main(options) {
 
     let input = options.input;
     let output = OUTDIR;
+    let minimumTweets = MINIMUM_TWEETS;
+    let tweetLimit;
     if (options.output) {
         output = options.output;
     }
+    if (options.minimumTweets) {
+        minimumTweets = options.minimumTweets;
+    }
+    if (options.tweetLimit) {
+        tweetLimit = options.tweetLimit;
+    }
 
-    filterData(input, output, 1000);
+    if (tweetLimit && tweetLimit < minimumTweets) {
+        console.error("Limit has to be greater or equal to minimum number.");
+        process.exit(1);
+        return;
+    }
+
+    filterData(input, output, minimumTweets, tweetLimit);
 }
 
-function filterData(inputFolder: string, outputFolder: string, minimumTweets: number) {
+function filterData(inputFolder: string, outputFolder: string, minimumTweets: number, tweetLimit?: number) {
     if (!fs.existsSync(outputFolder)) {
         fs.mkdirSync(outputFolder);
     }  
@@ -51,16 +68,16 @@ function filterData(inputFolder: string, outputFolder: string, minimumTweets: nu
         if (match && match.length > 1) {
             let userid = match[1];
 
-            let tweets = getUserTweets(inputFolder, userid);
+            let tweets = getTweets(inputFolder, userid, tweetLimit);
 
-            if (tweets.length >= minimumTweets) {
+            if (tweets.length >= 2*minimumTweets) {
                 writeSample(`${outputFolder}/${userid}.json`, tweets);
             }
         }
     }
 }
 
-function getUserTweets(foldername: string, userid: string, count?: number): Tweet[] {
+function getTweets(foldername: string, userid: string, count?: number): Tweet[] {
     let filename = `${foldername}/${userid}.json`;
 
     let tweets: Tweet[] = JSON.parse(fs.readFileSync(filename, "utf-8"));
@@ -73,11 +90,22 @@ function getUserTweets(foldername: string, userid: string, count?: number): Twee
         // Make sure to not attempt to take more tweets than available
         count = Math.min(tweets.length, count);
 
+        // Take authors tweets
         for (let i = 0; i < count; i++) {
             let rand = -1;
             do {
                 rand = Math.floor(Math.random() * tweets.length);
-            } while (indices.indexOf(rand) >= 0);
+            } while (indices.indexOf(rand) >= 0 || tweets[rand].user.id_str !== userid);
+
+            indices.push(rand);
+        }
+
+        // Take random tweets
+        for (let i = 0; i < count; i++) {
+            let rand = -1;
+            do {
+                rand = Math.floor(Math.random() * tweets.length);
+            } while (indices.indexOf(rand) >= 0 || tweets[rand].user.id_str === userid);
 
             indices.push(rand);
         }
