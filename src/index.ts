@@ -7,6 +7,7 @@ const optionDefinitions = [
     { name: 'output', type: String, multiple: false },
     { name: 'minimumTweets', type: Number, multiple: false },
     { name: 'tweetLimit', type: Number, multiple: false },
+    { name: 'maximumTweets', type: Number, multiple: false },
 ];
 
 const fileRegex = /^([0-9]+)\.json$/;
@@ -46,10 +47,10 @@ function main(options) {
         tweetLimit = options.tweetLimit;
     }
 
-    filterData(input, output, minimumTweets, tweetLimit);
+    filterData(input, output, minimumTweets, tweetLimit, options.maximumTweets);
 }
 
-function filterData(inputFolder: string, outputFolder: string, minimumTweets: number, tweetLimit?: number) {
+function filterData(inputFolder: string, outputFolder: string, minimumTweets: number, tweetLimit?: number, maximumTweets?: number) {
     if (!fs.existsSync(outputFolder)) {
         fs.mkdirSync(outputFolder);
     }  
@@ -65,7 +66,7 @@ function filterData(inputFolder: string, outputFolder: string, minimumTweets: nu
             // Test if dataset has enough tweets first
             let allTweets = getTweets(inputFolder, userid);
 
-            if (allTweets.length >= 2*minimumTweets) {
+            if (allTweets.length >= 2*minimumTweets && allTweets.length <= 2*maximumTweets) {
                 let tweets = getTweets(inputFolder, userid, tweetLimit);
                 
                 writeSample(`${outputFolder}/${userid}.json`, tweets);
